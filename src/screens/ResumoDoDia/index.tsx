@@ -1,59 +1,217 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+// src/screens/ResumoDoDia.tsx
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute, RouteProp } from '@react-navigation/native';
+import { useRoute, RouteProp, useIsFocused } from '@react-navigation/native';
 import { RootStackParamList } from '../../routes/types';
+import { listNotas, listPaletes } from '../../services/api';
+
+type RouteProps = RouteProp<RootStackParamList, 'ResumoDoDia'>;
+
+const withHairSpaces = (s: string) => (Platform.OS === 'android' ? s + '\u200A\u200A' : s);
+
+function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
+  return (
+    <View style={[styles.badge, { backgroundColor: bg }]}>
+      <Text
+        style={[styles.badgeText, { color }]}
+        numberOfLines={1}
+        allowFontScaling={false}
+        textBreakStrategy="simple"
+      >
+        {withHairSpaces(label)}
+      </Text>
+    </View>
+  );
+}
+
+function brToISO(br?: string) {
+  if (!br) return undefined;
+  const m = br.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return undefined;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 export default function ResumoDoDia() {
-  const route = useRoute<RouteProp<RootStackParamList, 'ResumoDoDia'>>();
-  const { data } = route.params;
+  const route = useRoute<RouteProps>();
+  const isFocused = useIsFocused();
+  const { data, diaISO } = (route.params || {}) as any;
 
+  const diaFetch = diaISO || brToISO(data);
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const [fullNotas, setFullNotas] = useState<any[]>([]);
+  const [fullPaletes, setFullPaletes] = useState<any[]>([]);
   const [notas, setNotas] = useState<any[]>([]);
   const [paletes, setPaletes] = useState<any[]>([]);
+  const [selectedRota, setSelectedRota] = useState<number | null>(null);
+
+  const fetchAllOfDay = useCallback(async () => {
+    setErrorMsg('');
+    if (!diaFetch) {
+      setFullNotas([]); setFullPaletes([]); setNotas([]); setPaletes([]);
+      setErrorMsg('Data inválida para busca');
+      return;
+    }
+    setLoading(true);
+    try {
+      const [ns, ps] = await Promise.all([
+        listNotas(diaFetch),
+        listPaletes(diaFetch),
+      ]);
+      const arrN = Array.isArray(ns) ? ns : [];
+      const arrP = Array.isArray(ps) ? ps : [];
+      setFullNotas(arrN);
+      setFullPaletes(arrP);
+      setNotas(arrN);
+      setPaletes(arrP);
+      setSelectedRota(null);
+    } catch (e: any) {
+      setFullNotas([]); setFullPaletes([]); setNotas([]); setPaletes([]);
+      setErrorMsg(e?.message || 'Falha ao carregar');
+    } finally {
+      setLoading(false);
+    }
+  }, [diaFetch]);
 
   useEffect(() => {
-    const todasNotas = [
-      { rota: 1, nota: 123, tipologia: 'resfriado', data: '28/07/2025' },
-      { rota: 2, nota: 456, tipologia: 'congelado', data: '28/07/2025' },
-      { rota: 3, nota: 789, tipologia: 'seco', data: '27/07/2025' }
-    ];
+    if (isFocused) fetchAllOfDay();
+  }, [isFocused, fetchAllOfDay]);
 
-    const todosPaletes = [
-      { rota: 1, numeroPalete: '001', tipologia: 'resfriado', data: '28/07/2025' },
-      { rota: 2, numeroPalete: '002', tipologia: 'seco', data: '28/07/2025' },
-      { rota: 3, numeroPalete: '003', tipologia: 'congelado', data: '27/07/2025' }
-    ];
+  const rotas = useMemo(() => {
+    const s = new Set<number>();
+    fullNotas.forEach(n => typeof n?.numeroRota === 'number' && s.add(n.numeroRota));
+    fullPaletes.forEach(p => typeof p?.numeroRota === 'number' && s.add(p.numeroRota));
+    return Array.from(s).sort((a, b) => a - b);
+  }, [fullNotas, fullPaletes]);
 
-    const filtradasNotas = todasNotas.filter(n => n.data === data);
-    const filtradosPaletes = todosPaletes.filter(p => p.data === data);
-
-    setNotas(filtradasNotas);
-    setPaletes(filtradosPaletes);
-  }, [data]);
+  async function onSelectRota(rota: number | null) {
+    setSelectedRota(rota);
+    if (!diaFetch) return;
+    if (rota === null) {
+      setNotas(fullNotas);
+      setPaletes(fullPaletes);
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const [ns, ps] = await Promise.all([
+        listNotas(diaFetch, rota),
+        listPaletes(diaFetch, rota),
+      ]);
+      setNotas(Array.isArray(ns) ? ns : []);
+      setPaletes(Array.isArray(ps) ? ps : []);
+    } catch (e: any) {
+      setNotas([]); setPaletes([]);
+      setErrorMsg(e?.message || `Falha ao filtrar rota ${rota}`);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Resumo detalhado do dia</Text>
-        <Text style={styles.subtitle}>Data: {data}</Text>
+        <Text style={styles.subtitle}>
+          Data: {data} {diaFetch ? `(${diaFetch})` : ''}
+        </Text>
 
-        <Text style={styles.section}>Notas ({notas.length})</Text>
-        {notas.map((n, index) => (
-          <View key={index} style={styles.card}>
-            <Text>Rota: {n.rota}</Text>
-            <Text>Nota: {n.nota}</Text>
-            <Text>Tipologia: {n.tipologia}</Text>
-          </View>
-        ))}
+        <View style={{ marginBottom: 8 }}>
+          {errorMsg ? (
+            <Text style={{ color: '#b00020', marginTop: 4 }}>Erro: {errorMsg}</Text>
+          ) : null}
+          {loading ? <Text style={{ color: '#555' }}>carregando...</Text> : null}
+          <TouchableOpacity onPress={fetchAllOfDay} style={styles.reloadBtn} activeOpacity={0.8}>
+            <Text
+              style={styles.reloadBtnText}
+              numberOfLines={1}
+              allowFontScaling={false}
+              textBreakStrategy="simple"
+            >
+              {withHairSpaces('Recarregar')}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        <Text style={styles.section}>Paletes ({paletes.length})</Text>
-        {paletes.map((p, index) => (
-          <View key={index} style={styles.card}>
-            <Text>Rota: {p.rota}</Text>
-            <Text>Palete: {p.numeroPalete}</Text>
-            <Text>Tipologia: {p.tipologia}</Text>
-          </View>
-        ))}
+        <Text style={styles.section}>
+          Notas ({notas.length}) {loading ? '• carregando...' : ''}
+        </Text>
+
+        {notas.map((n, idx) => {
+          const avariaSim = (n.avaria || '').toString().toLowerCase() === 'sim';
+          const conferida = (n.conferidoPor ?? '').toString().trim() !== '';
+          return (
+            <View key={`nota-${idx}`} style={styles.card}>
+              {/* HEADER agora é coluna: badges primeiro, título completo abaixo */}
+              <View style={styles.cardHeader}>
+                <View style={styles.badgeRow}>
+                  <Badge
+                    label={avariaSim ? 'Avaria' : 'Sem avaria'}
+                    bg={avariaSim ? '#ffebee' : '#e8f5e9'}
+                    color={avariaSim ? '#c62828' : '#2e7d32'}
+                  />
+                  <Badge
+                    label={conferida ? 'Conferida' : 'Não conferida'}
+                    bg={conferida ? '#e8f5e9' : '#eeeeee'}
+                    color={conferida ? '#2e7d32' : '#616161'}
+                  />
+                  {n.tipologia ? (
+                    <Badge label={String(n.tipologia)} bg="#e3f2fd" color="#1565c0" />
+                  ) : null}
+                </View>
+
+                <Text style={styles.cardTitleBelow}>{`Nota ${n.numeroNota}`}</Text>
+              </View>
+
+              <Text>Rota: {n.numeroRota}</Text>
+              {n.conferidoPor ? <Text>Conferido por: {n.conferidoPor}</Text> : null}
+            </View>
+          );
+        })}
+
+        <Text style={styles.section}>
+          Paletes ({paletes.length}) {loading ? '• carregando...' : ''}
+        </Text>
+        {paletes.map((p, idx) => {
+          const remontadoSim = (p.remontado || '').toString().toLowerCase() === 'sim';
+          const conferidoSim = (p.conferido || '').toString().toLowerCase() === 'sim';
+          return (
+            <View key={`pal-${idx}`} style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={styles.badgeRow}>
+                  <Badge
+                    label={remontadoSim ? 'Remontado' : 'Não remontado'}
+                    bg={remontadoSim ? '#fff3e0' : '#eeeeee'}
+                    color={remontadoSim ? '#ef6c00' : '#616161'}
+                  />
+                  <Badge
+                    label={conferidoSim ? 'Conferido' : 'Não conferido'}
+                    bg={conferidoSim ? '#e8f5e9' : '#eeeeee'}
+                    color={conferidoSim ? '#2e7d32' : '#616161'}
+                  />
+                  {p.tipologia ? (
+                    <Badge label={String(p.tipologia)} bg="#e3f2fd" color="#1565c0" />
+                  ) : null}
+                </View>
+
+                <Text style={styles.cardTitleBelow}>{`Palete ${p.numeroPallet}`}</Text>
+              </View>
+
+              <Text>Rota: {p.numeroRota}</Text>
+            </View>
+          );
+        })}
+
+        {!loading && notas.length === 0 && paletes.length === 0 && !errorMsg ? (
+          <Text style={{ marginTop: 10, color: '#666' }}>
+            Nenhum registro para este dia.
+          </Text>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -61,14 +219,111 @@ export default function ResumoDoDia() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#fff' },
-  container: { padding: 20 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
-  subtitle: { fontSize: 16, marginBottom: 20 },
-  section: { fontSize: 18, fontWeight: '600', marginTop: 20 },
+  container: { padding: 20, paddingBottom: 30 },
+
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 6 },
+  subtitle: { fontSize: 16, marginBottom: 12 },
+
+  filterRow: { marginBottom: 10 },
+  filterLabel: { fontSize: 14, marginBottom: 4 },
+
+  // CHIPS (sem borda)
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  chipInactive: { backgroundColor: '#f2f4f7' },
+  chipActive: { backgroundColor: '#2b7ed7' },
+  chipText: {
+    color: '#333',
+    fontWeight: '600',
+    lineHeight: 20,
+    includeFontPadding: false,
+    paddingHorizontal: 2,
+  },
+  chipTextActive: { color: '#fff' },
+
+  quickRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+
+  section: { fontSize: 18, fontWeight: '600', marginTop: 16, marginBottom: 8 },
+
+  // CARD (sem borda)
   card: {
-    backgroundColor: '#f4f4f4',
+    backgroundColor: '#f7f7f9',
     padding: 12,
+    borderRadius: 10,
+    marginTop: 8,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  // HEADER agora é coluna
+  cardHeader: {
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+    gap: 8,
+  },
+
+  // Título abaixo das badges, largura total, sem ellipsis
+  cardTitleBelow: {
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
+    includeFontPadding: false,
+    paddingTop: 2,
+    width: '100%',
+  },
+
+  // BADGES (sem borda)
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  badge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginRight: 8,
+    marginTop: 0,
+    marginBottom: 0,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 16,
+    includeFontPadding: false,
+    paddingHorizontal: 2,
+  },
+
+  // BOTÃO
+  reloadBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 8,
-    marginTop: 10
-  }
+    backgroundColor: '#e8f1ff',
+    marginTop: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  reloadBtnText: {
+    color: '#2b7ed7',
+    fontWeight: '700',
+    lineHeight: 20,
+    includeFontPadding: false,
+    paddingHorizontal: 2,
+  },
 });

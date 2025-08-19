@@ -4,12 +4,13 @@ import Home from '../screens/Home';
 import Notas from '../screens/Notas';
 import Paletes from '../screens/Paletes';
 import { Ionicons } from '@expo/vector-icons';
+import AppHeader from '../components/AppHeader';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
 export default function TabsRoutes() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator screenOptions={{ header: () => <AppHeader /> }}>
       <Tab.Screen
         name="Home"
         component={Home}
