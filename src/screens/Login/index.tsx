@@ -1,4 +1,3 @@
-// src/screens/Login.tsx
 import React, { useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
@@ -62,10 +61,18 @@ export default function Login() {
 
       // ✅ não precisa navigation.reset; <Routes> troca para AppRoutes sozinho
       // console.log('[Login] sucesso'); // debug opcional
-    } catch (err) {
-      Alert.alert('Erro', 'Não foi possível validar o usuário agora.');
-      // console.log('[Login] erro', err); // debug opcional
+    } catch (err: any) {
+      console.log('[Login] erro', err?.message || err);
+      const m = String(err?.message || '').toLowerCase();
+      if (m.includes('aborted') || m.includes('timeout')) {
+        Alert.alert('Conexão lenta', 'A API não respondeu a tempo. Verifique o endereço da API.');
+      } else if (m.includes('network')) {
+        Alert.alert('Sem conexão', 'Não foi possível alcançar o servidor. Confira o API_BASE.');
+      } else {
+        Alert.alert('Erro', 'Não foi possível validar o usuário agora.');
+      }
     } finally {
+
       setLoading(false);
     }
   };

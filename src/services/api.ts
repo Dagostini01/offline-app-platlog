@@ -1,8 +1,4 @@
-// src/services/api.ts
-import { Platform } from 'react-native';
-
-// IP fixo da sua máquina com porta da API NestJS
-export const API_BASE = 'http://localhost:3000';
+export const API_BASE = 'https://apidocker-bhc9f4hxb3hggrfz.brazilsouth-01.azurewebsites.net';
 
 /* --------------------------------- util ---------------------------------- */
 
@@ -154,8 +150,21 @@ export async function listUsers(): Promise<User[]> {
 }
 
 export async function getUserByEmail(email: string) {
-  const r = await fetch(`${API_BASE}/users/by-email/${encodeURIComponent(email)}`);
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error('Erro ao buscar usuário');
-  return r.json();
+  const url = `${API_BASE}/users/by-email/${encodeURIComponent(email)}`;
+  const res = await fetchWithTimeout(url, {}, 8000); // timeout de 8s
+
+  const text = await safeText(res);
+
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    // repassa o motivo real, se houver
+    throw new Error(text || `Erro ao buscar usuário (HTTP ${res.status})`);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('Resposta inválida do servidor');
+  }
 }
+

@@ -60,11 +60,7 @@ const notaSchema = yup.object({
     .number()
     .typeError('Informe o número da nota')
     .required('Informe a nota'),
-  tipologia: yup.string().when('avaria', {
-    is: false,
-    then: (s) => s.required('Selecione a tipologia'),
-    otherwise: (s) => s.optional(),
-  }),
+  tipologia: yup.string().required('Selecione a tipologia'),
   conferido: yup.boolean().required(),
   conferente: yup.string().when('conferido', {
     is: true,
@@ -186,16 +182,16 @@ export default function Notas() {
         numeroRota: Number(data.rota),
         numeroNota: Number(data.nota),
         avaria: hasAvarias ? ('sim' as const) : ('nao' as const),
-        tipologia: hasAvarias ? undefined : (data.tipologia || undefined),
+        tipologia: data.tipologia || undefined,
         conferidoPor: (data.conferente || '').trim() || undefined,
         avarias: hasAvarias
           ? data.avarias.map((a) => ({
-              tipoErro: a.tipoErro,
-              codProduto: a.codigoProduto || undefined,
-              descProduto: a.descricaoProduto || undefined,
-              quantidade: toQtyString(a.quantidade),
-              unidadeMedida: a.unidadeMedida || 'UN',
-            }))
+            tipoErro: a.tipoErro,
+            codProduto: a.codigoProduto || undefined,
+            descProduto: a.descricaoProduto || undefined,
+            quantidade: toQtyString(a.quantidade),
+            unidadeMedida: a.unidadeMedida || 'UN',
+          }))
           : undefined,
       };
 
@@ -291,40 +287,36 @@ export default function Notas() {
               <Text style={styles.error}>{String(errors.nota.message)}</Text>
             )}
 
-            {!avaria && (
-              <>
-                <Text>Tipologia</Text>
-                <Controller
-                  control={control}
-                  name="tipologia"
-                  render={({ fieldState: { error } }) => (
-                    <>
-                      <DropDownPicker
-                        open={openTipologia}
-                        setOpen={setOpenTipologia}
-                        items={tipologiaItems}
-                        value={tipologia}
-                        setValue={(cb) => {
-                          const selected = cb(tipologia as any);
-                          setTipologia(selected as string | null);
-                          return selected;
-                        }}
-                        listMode="SCROLLVIEW"
-                        style={styles.dropdown}
-                        dropDownContainerStyle={styles.dropdownContainer}
-                        placeholder="Selecione a tipologia"
-                        zIndex={1000}
-                      />
-                      {error && (
-                        <Text>
-                          {String(error.message)}
-                        </Text>
-                      )}
-                    </>
+            <Text>Tipologia</Text>
+            <Controller
+              control={control}
+              name="tipologia"
+              render={({ fieldState: { error } }) => (
+                <>
+                  <DropDownPicker
+                    open={openTipologia}
+                    setOpen={setOpenTipologia}
+                    items={tipologiaItems}
+                    value={tipologia}
+                    setValue={(cb) => {
+                      const selected = cb(tipologia as any);
+                      setTipologia(selected as string | null);
+                      return selected;
+                    }}
+                    listMode="SCROLLVIEW"
+                    style={styles.dropdown}
+                    dropDownContainerStyle={styles.dropdownContainer}
+                    placeholder="Selecione a tipologia"
+                    zIndex={1000}
+                  />
+                  {error && (
+                    <Text>
+                      {String(error.message)}
+                    </Text>
                   )}
-                />
-              </>
-            )}
+                </>
+              )}
+            />
 
             <View style={styles.switchContainer}>
               <Text>Conferido?</Text>
