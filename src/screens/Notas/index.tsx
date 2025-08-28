@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,13 +13,15 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import DropDownPicker from 'react-native-dropdown-picker';
-import { useForm, Controller, useWatch, useFieldArray } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import { createNota } from '../../services/api';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DropDownPicker from "react-native-dropdown-picker";
+import { useForm, Controller, useWatch, useFieldArray } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { createNota } from "../../services/api";
+import { useOfflineSync } from "../../hooks/useOfflineSync";
+import NetInfo from "@react-native-community/netinfo";
 
 type AvariaForm = {
   tipoErro: string;
@@ -41,36 +43,36 @@ type FormData = {
 
 // ---------- Validação ----------
 const avariaItemSchema = yup.object({
-  tipoErro: yup.string().required('Informe o tipo de erro'),
-  codigoProduto: yup.string().required('Informe o código do produto'),
-  descricaoProduto: yup.string().required('Informe a descrição'),
+  tipoErro: yup.string().required("Informe o tipo de erro"),
+  codigoProduto: yup.string().required("Informe o código do produto"),
+  descricaoProduto: yup.string().required("Informe a descrição"),
   quantidade: yup
     .number()
-    .typeError('Informe a quantidade')
-    .required('Informe a quantidade'),
+    .typeError("Informe a quantidade")
+    .required("Informe a quantidade"),
   unidadeMedida: yup.string().optional(),
 });
 
 const notaSchema = yup.object({
   rota: yup
     .number()
-    .typeError('Informe o número da rota')
-    .required('Informe a rota'),
+    .typeError("Informe o número da rota")
+    .required("Informe a rota"),
   nota: yup
     .number()
-    .typeError('Informe o número da nota')
-    .required('Informe a nota'),
-  tipologia: yup.string().required('Selecione a tipologia'),
+    .typeError("Informe o número da nota")
+    .required("Informe a nota"),
+  tipologia: yup.string().required("Selecione a tipologia"),
   conferido: yup.boolean().required(),
-  conferente: yup.string().when('conferido', {
+  conferente: yup.string().when("conferido", {
     is: true,
-    then: (s) => s.required('Informe quem conferiu'),
+    then: (s) => s.required("Informe quem conferiu"),
     otherwise: (s) => s.optional(),
   }),
   avaria: yup.boolean().required(),
-  avarias: yup.array(avariaItemSchema).when('avaria', {
+  avarias: yup.array(avariaItemSchema).when("avaria", {
     is: true,
-    then: (s) => s.min(1, 'Inclua ao menos uma avaria'),
+    then: (s) => s.min(1, "Inclua ao menos uma avaria"),
     otherwise: (s) => s.optional().default([]),
   }),
 });
@@ -78,10 +80,12 @@ const notaSchema = yup.object({
 // ---------- Helper ----------
 function toQtyString(n?: number) {
   if (n === undefined || n === null || Number.isNaN(n)) return undefined;
-  return n.toFixed(3).replace(/\.?0+$/, ''); // até 3 casas, sem zeros à direita
+  return n.toFixed(3).replace(/\.?0+$/, ""); // até 3 casas, sem zeros à direita
 }
 
 export default function Notas() {
+  const { saveNotaOffline } = useOfflineSync();
+
   const {
     control,
     handleSubmit,
@@ -94,9 +98,9 @@ export default function Notas() {
     defaultValues: {
       rota: 0,
       nota: 0,
-      tipologia: '',
+      tipologia: "",
       conferido: false,
-      conferente: '',
+      conferente: "",
       avaria: false,
       avarias: [],
     },
@@ -104,37 +108,39 @@ export default function Notas() {
 
   const { fields, append, remove, replace } = useFieldArray({
     control,
-    name: 'avarias',
+    name: "avarias",
   });
 
-  const conferido = useWatch({ control, name: 'conferido' });
-  const avaria = useWatch({ control, name: 'avaria' });
+  const conferido = useWatch({ control, name: "conferido" });
+  const avaria = useWatch({ control, name: "avaria" });
 
   const [tipologia, setTipologia] = useState<string | null>(null);
   const [openTipologia, setOpenTipologia] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Para dropdown de "tipoErro" por linha
-  const [openTipoErroIndex, setOpenTipoErroIndex] = useState<number | null>(null);
+  const [openTipoErroIndex, setOpenTipoErroIndex] = useState<number | null>(
+    null
+  );
 
   const tipologiaItems = [
-    { label: 'Resfriado', value: 'resfriado' },
-    { label: 'Congelado', value: 'congelado' },
-    { label: 'Seco', value: 'seco' },
+    { label: "Resfriado", value: "resfriado" },
+    { label: "Congelado", value: "congelado" },
+    { label: "Seco", value: "seco" },
   ];
 
   const tipoErroItems = [
-    { label: 'Avaria de Produto', value: 'avaria_produto' },
-    { label: 'Avaria em Embalagem', value: 'avaria_embalagem' },
-    { label: 'Falta', value: 'falta' },
-    { label: 'Inversão de Produto', value: 'inversao_produto' },
-    { label: 'Inversão de Rota', value: 'inversao_rota' },
-    { label: 'Sobra', value: 'sobra' },
+    { label: "Avaria de Produto", value: "avaria_produto" },
+    { label: "Avaria em Embalagem", value: "avaria_embalagem" },
+    { label: "Falta", value: "falta" },
+    { label: "Inversão de Produto", value: "inversao_produto" },
+    { label: "Inversão de Rota", value: "inversao_rota" },
+    { label: "Sobra", value: "sobra" },
   ];
 
   // espelha valor do DropDownPicker em RHF
   useEffect(() => {
-    setValue('tipologia', tipologia ?? '');
+    setValue("tipologia", tipologia ?? "");
   }, [tipologia, setValue]);
 
   // quando liga/desliga o switch "Avaria?", gerencia o array
@@ -142,11 +148,11 @@ export default function Notas() {
     if (avaria) {
       if (fields.length === 0) {
         append({
-          tipoErro: '',
-          codigoProduto: '',
-          descricaoProduto: '',
+          tipoErro: "",
+          codigoProduto: "",
+          descricaoProduto: "",
           quantidade: undefined,
-          unidadeMedida: 'UN',
+          unidadeMedida: "UN",
         });
       }
     } else {
@@ -156,20 +162,19 @@ export default function Notas() {
   }, [avaria]);
 
   // --- Resumo das avarias ---
-  const avariasValues = watch('avarias');
+  const avariasValues = watch("avarias");
   const countAvarias = Array.isArray(avariasValues) ? avariasValues.length : 0;
   const totalQtdAvarias = Array.isArray(avariasValues)
     ? avariasValues.reduce((acc, a) => acc + (Number(a?.quantidade) || 0), 0)
     : 0;
 
   // 🔧 Corrige o tipo de setOpen (boolean | (prev)=>boolean)
-  const makeSetOpenForIndex = (idx: number) => (
-    v: boolean | ((prev: boolean) => boolean)
-  ) => {
-    const prev = openTipoErroIndex === idx;
-    const next = typeof v === 'function' ? v(prev) : v;
-    setOpenTipoErroIndex(next ? idx : null);
-  };
+  const makeSetOpenForIndex =
+    (idx: number) => (v: boolean | ((prev: boolean) => boolean)) => {
+      const prev = openTipoErroIndex === idx;
+      const next = typeof v === "function" ? v(prev) : v;
+      setOpenTipoErroIndex(next ? idx : null);
+    };
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -181,38 +186,55 @@ export default function Notas() {
         // NÃO enviar diaHoje (DB preenche com DEFAULT)
         numeroRota: Number(data.rota),
         numeroNota: Number(data.nota),
-        avaria: hasAvarias ? ('sim' as const) : ('nao' as const),
-        tipologia: data.tipologia || undefined,
-        conferidoPor: (data.conferente || '').trim() || undefined,
+        avaria: hasAvarias ? ("sim" as const) : ("nao" as const),
+        tipologia:
+          (data.tipologia as "resfriado" | "congelado" | "seco") || "seco",
+        conferidoPor: (data.conferente || "").trim() || "Não informado",
         avarias: hasAvarias
           ? data.avarias.map((a) => ({
-            tipoErro: a.tipoErro,
-            codProduto: a.codigoProduto || undefined,
-            descProduto: a.descricaoProduto || undefined,
-            quantidade: toQtyString(a.quantidade),
-            unidadeMedida: a.unidadeMedida || 'UN',
-          }))
+              tipoErro: a.tipoErro,
+              codProduto: a.codigoProduto || undefined,
+              descProduto: a.descricaoProduto || undefined,
+              quantidade: toQtyString(a.quantidade),
+              unidadeMedida: a.unidadeMedida || "UN",
+            }))
           : undefined,
       };
 
-      const saved = await createNota(payload);
+      const netInfo = await NetInfo.fetch();
 
-      Alert.alert('Sucesso', `Nota #${saved?.numeroNota} salva!`); // FIX: template string
+      if (netInfo.isConnected) {
+        try {
+          const saved = await createNota(payload);
+          Alert.alert("Sucesso", `Nota #${saved?.numeroNota} salva online!`);
+        } catch (err: any) {
+          await saveNotaOffline(payload);
+          Alert.alert(
+            "Salvo Offline",
+            `Nota #${payload.numeroNota} salva offline. Será sincronizada quando houver conexão.`
+          );
+        }
+      } else {
+        await saveNotaOffline(payload);
+        Alert.alert(
+          "Salvo Offline",
+          `Nota #${payload.numeroNota} salva offline. Será sincronizada quando houver conexão.`
+        );
+      }
 
-      // Reset parcial para acelerar cadastros
-      setValue('nota', 0);
-      setValue('conferido', false);
-      setValue('conferente', '');
-      setValue('avaria', false);
+      setValue("nota", 0);
+      setValue("conferido", false);
+      setValue("conferente", "");
+      setValue("avaria", false);
       replace([]); // limpa array
-      setValue('tipologia', '');
+      setValue("tipologia", "");
       setTipologia(null);
     } catch (err: any) {
-      const msg = String(err?.message || '');
-      if (msg.includes('Já existe uma nota para este dia/rota/número')) {
-        Alert.alert('Atenção', 'Essa nota já foi cadastrada hoje nessa rota.');
+      const msg = String(err?.message || "");
+      if (msg.includes("Já existe uma nota para este dia/rota/número")) {
+        Alert.alert("Atenção", "Essa nota já foi cadastrada hoje nessa rota.");
       } else {
-        Alert.alert('Erro', msg || 'Falha ao salvar a nota');
+        Alert.alert("Erro", msg || "Falha ao salvar a nota");
       }
     } finally {
       setSubmitting(false);
@@ -224,7 +246,7 @@ export default function Notas() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
           style={styles.keyboard}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <ScrollView
             contentContainerStyle={styles.container}
@@ -232,17 +254,15 @@ export default function Notas() {
             nestedScrollEnabled
           >
             <Text style={styles.title}>Cadastro de Notas</Text>
-            <Text>Data: {new Date().toLocaleDateString('pt-BR')}</Text>
+            <Text>Data: {new Date().toLocaleDateString("pt-BR")}</Text>
 
             {/* Resumo de avarias */}
             {avaria && (
               <View style={styles.summaryBox}>
                 <Text style={styles.summaryText}>
-                  {countAvarias} {countAvarias === 1 ? 'avaria' : 'avarias'}{' '}
-                  adicionada{countAvarias === 1 ? '' : 's'}
-                  {countAvarias > 0
-                    ? ` • Qtde total: ${totalQtdAvarias}`
-                    : ''}
+                  {countAvarias} {countAvarias === 1 ? "avaria" : "avarias"}{" "}
+                  adicionada{countAvarias === 1 ? "" : "s"}
+                  {countAvarias > 0 ? ` • Qtde total: ${totalQtdAvarias}` : ""}
                 </Text>
               </View>
             )}
@@ -309,11 +329,7 @@ export default function Notas() {
                     placeholder="Selecione a tipologia"
                     zIndex={1000}
                   />
-                  {error && (
-                    <Text>
-                      {String(error.message)}
-                    </Text>
-                  )}
+                  {error && <Text>{String(error.message)}</Text>}
                 </>
               )}
             />
@@ -373,11 +389,11 @@ export default function Notas() {
                   <TouchableOpacity
                     onPress={() =>
                       append({
-                        tipoErro: '',
-                        codigoProduto: '',
-                        descricaoProduto: '',
+                        tipoErro: "",
+                        codigoProduto: "",
+                        descricaoProduto: "",
                         quantidade: undefined,
-                        unidadeMedida: 'UN',
+                        unidadeMedida: "UN",
                       })
                     }
                     style={styles.addBtn}
@@ -389,7 +405,7 @@ export default function Notas() {
                 {fields.map((field, index) => (
                   <View key={field.id} style={styles.avariaCard}>
                     <View style={styles.rowHeader}>
-                      <Text style={{ fontWeight: '600' }}>
+                      <Text style={{ fontWeight: "600" }}>
                         Avaria #{index + 1}
                       </Text>
                       <TouchableOpacity
@@ -404,7 +420,10 @@ export default function Notas() {
                     <Controller
                       control={control}
                       name={`avarias.${index}.tipoErro`} // FIX
-                      render={({ field: { onChange, value }, fieldState: { error } }) => (
+                      render={({
+                        field: { onChange, value },
+                        fieldState: { error },
+                      }) => (
                         <>
                           <DropDownPicker
                             open={openTipoErroIndex === index}
@@ -449,9 +468,7 @@ export default function Notas() {
                     />
                     {errors.avarias?.[index]?.codigoProduto && (
                       <Text style={styles.error}>
-                        {String(
-                          errors.avarias[index]?.codigoProduto?.message
-                        )}
+                        {String(errors.avarias[index]?.codigoProduto?.message)}
                       </Text>
                     )}
 
@@ -490,7 +507,7 @@ export default function Notas() {
                           onSubmitEditing={Keyboard.dismiss}
                           value={
                             value === undefined || value === null
-                              ? ''
+                              ? ""
                               : String(value)
                           }
                           onChangeText={(t) => onChange(Number(t))}
@@ -500,9 +517,7 @@ export default function Notas() {
                     />
                     {errors.avarias?.[index]?.quantidade && (
                       <Text style={styles.error}>
-                        {String(
-                          errors.avarias[index]?.quantidade?.message
-                        )}
+                        {String(errors.avarias[index]?.quantidade?.message)}
                       </Text>
                     )}
 
@@ -513,7 +528,7 @@ export default function Notas() {
                       render={({ field: { onChange, value } }) => (
                         <TextInput
                           style={styles.input}
-                          value={value || 'UN'}
+                          value={value || "UN"}
                           onChangeText={onChange}
                           returnKeyType="done"
                           onSubmitEditing={Keyboard.dismiss}
@@ -525,7 +540,7 @@ export default function Notas() {
                 ))}
 
                 {errors.avarias &&
-                  typeof errors.avarias?.message === 'string' && (
+                  typeof errors.avarias?.message === "string" && (
                     <Text style={styles.error}>
                       {String(errors.avarias.message)}
                     </Text>
@@ -535,7 +550,7 @@ export default function Notas() {
             {/* ----- /MÚLTIPLAS AVARIAS ----- */}
 
             <Button
-              title={submitting ? 'Salvando...' : 'Salvar Nota'}
+              title={submitting ? "Salvando..." : "Salvar Nota"}
               onPress={handleSubmit(onSubmit)}
               disabled={submitting}
             />
@@ -547,7 +562,7 @@ export default function Notas() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
   keyboard: { flex: 1 },
   container: { padding: 20, paddingBottom: 40 },
   title: { fontSize: 20, marginBottom: 10 },
@@ -557,66 +572,76 @@ const styles = StyleSheet.create({
     padding: 8,
     marginBottom: 10,
     borderRadius: 6,
-    borderColor: '#ccc',
+    borderColor: "#ccc",
   },
   dropdown: {
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     borderWidth: 1,
     borderRadius: 6,
     height: 40,
     marginBottom: 10,
   },
   dropdownContainer: {
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     borderWidth: 1,
     borderRadius: 6,
     marginBottom: 10,
   },
   switchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
-  error: { color: 'red', marginBottom: 10 },
+  error: { color: "red", marginBottom: 10 },
   box: {
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
   },
   rowHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   addBtn: {
-    backgroundColor: '#1976d2',
+    backgroundColor: "#1976d2",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
   },
-  addBtnText: { color: '#fff', fontWeight: '600', width: '100%', textAlign: 'center' },
+  addBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    width: "100%",
+    textAlign: "center",
+  },
   avariaCard: {
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: "#eee",
     borderRadius: 8,
     padding: 10,
     marginBottom: 10,
   },
   removeBtn: {
-    backgroundColor: '#d32f2f',
+    backgroundColor: "#d32f2f",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
   },
-  removeBtnText: { color: '#fff', fontWeight: '600', width: '100%', textAlign: 'center' },
+  removeBtnText: {
+    color: "#fff",
+    fontWeight: "600",
+    width: "100%",
+    textAlign: "center",
+  },
   // resumo
   summaryBox: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#C8E6C9',
+    backgroundColor: "#E8F5E9",
+    borderColor: "#C8E6C9",
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 8,
@@ -624,5 +649,5 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
-  summaryText: { color: '#2E7D32', fontWeight: '600' },
+  summaryText: { color: "#2E7D32", fontWeight: "600" },
 });

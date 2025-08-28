@@ -1,27 +1,39 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuth } from '../context/AuthContext';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { useAuth } from "../context/AuthContext";
+import { SyncStatus } from "./SyncStatus";
 
 export default function AppHeader() {
-  const [nome, setNome] = useState('');
+  const [nome, setNome] = useState("");
+  const { top } = useSafeAreaInsets();
   const { logout } = useAuth();
   const [leaving, setLeaving] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const raw = await AsyncStorage.getItem('@user');
-      if (raw) setNome(JSON.parse(raw)?.nome ?? '');
+      const raw = await AsyncStorage.getItem("@user");
+      if (raw) setNome(JSON.parse(raw)?.nome ?? "");
     })();
   }, []);
 
   const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja encerrar a sessão?', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert("Sair", "Deseja encerrar a sessão?", [
+      { text: "Cancelar", style: "cancel" },
       {
-        text: 'Sair',
-        style: 'destructive',
+        text: "Sair",
+        style: "destructive",
         onPress: async () => {
           try {
             setLeaving(true);
@@ -36,26 +48,46 @@ export default function AppHeader() {
   };
 
   return (
-    <SafeAreaView style={styles.header}>
-      <Text style={styles.welcome} numberOfLines={1}>
-        Seja bem-vindo, {nome}!
-      </Text>
+    <View style={[styles.container, { paddingTop: top }]}>
+      <View style={styles.header}>
+        <Text style={styles.welcome} numberOfLines={1}>
+          Seja bem-vindo, {nome}!
+        </Text>
 
-      <TouchableOpacity
-        style={[styles.logoutBtn, leaving && { opacity: 0.7 }]}
-        onPress={handleLogout}
-        disabled={leaving}
-        activeOpacity={0.85}
-      >
-        {leaving ? <ActivityIndicator /> : <Text style={styles.logoutText}>Sair</Text>}
-      </TouchableOpacity>
-    </SafeAreaView>
+        <TouchableOpacity
+          style={[styles.logoutBtn, leaving && { opacity: 0.7 }]}
+          onPress={handleLogout}
+          disabled={leaving}
+          activeOpacity={0.85}
+        >
+          {leaving ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.logoutText}>Sair</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+      <SyncStatus />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: '#2b7ed7', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  welcome: { color: '#fff', fontSize: 16, fontWeight: '700', width: '70%' },
-  logoutBtn: { backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
-  logoutText: { color: '#2b7ed7', fontWeight: '700' },
+  container: {
+    backgroundColor: "#2b7ed7",
+    padding: 12,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  welcome: { color: "#fff", fontSize: 16, fontWeight: "700", width: "70%" },
+  logoutBtn: {
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  logoutText: { color: "#2b7ed7", fontWeight: "700" },
 });

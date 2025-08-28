@@ -1,5 +1,5 @@
 // src/screens/Paletes.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Text,
   TextInput,
@@ -13,13 +13,15 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import DropDownPicker from 'react-native-dropdown-picker';
-import { useForm, Controller } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import { createPalete } from '../../services/api';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DropDownPicker from "react-native-dropdown-picker";
+import { useForm, Controller } from "react-hook-form";
+import { yupResolver } from "@hookform/resolvers/yup";
+import * as yup from "yup";
+import { createPalete } from "../../services/api";
+import { useOfflineSync } from "../../hooks/useOfflineSync";
+import NetInfo from "@react-native-community/netinfo";
 
 type PaleteForm = {
   rota: number;
@@ -32,16 +34,24 @@ type PaleteForm = {
 const paleteSchema = yup.object().shape({
   rota: yup
     .number()
-    .typeError('Informe o número da rota')
-    .required('Informe a rota'),
+    .typeError("Informe o número da rota")
+    .required("Informe a rota"),
   // numeroPalete pode ser vazio (vira "sem bandeira" no submit)
   numeroPalete: yup.string().optional(),
-  tipologia: yup.string().required('Informe a tipologia'),
+  tipologia: yup.string().required("Informe a tipologia"),
   remontado: yup.boolean().required(),
   conferido: yup.boolean().required(),
 });
 
 export default function Paletes() {
+  const { isOnline, isSyncing, savePaleteOffline, getOfflineCount } =
+    useOfflineSync();
+  const [offlineCount, setOfflineCount] = useState({
+    notas: 0,
+    paletes: 0,
+    total: 0,
+  });
+
   const {
     control,
     handleSubmit,
@@ -51,8 +61,8 @@ export default function Paletes() {
     resolver: yupResolver(paleteSchema) as any,
     defaultValues: {
       rota: 0,
-      numeroPalete: '',
-      tipologia: '',
+      numeroPalete: "",
+      tipologia: "",
       remontado: false,
       conferido: false,
     },
@@ -63,15 +73,33 @@ export default function Paletes() {
   const [submitting, setSubmitting] = useState(false);
 
   const items = [
-    { label: 'Resfriado', value: 'resfriado' },
-    { label: 'Congelado', value: 'congelado' },
-    { label: 'Seco', value: 'seco' },
+    { label: "Resfriado", value: "resfriado" },
+    { label: "Congelado", value: "congelado" },
+    { label: "Seco", value: "seco" },
   ];
 
   // espelha o valor do DropDownPicker em RHF
   useEffect(() => {
-    setValue('tipologia', tipologia ?? '');
+    setValue("tipologia", tipologia ?? "");
   }, [tipologia, setValue]);
+
+  useEffect(() => {
+    const fetchOfflineCount = async () => {
+      try {
+        const count = await getOfflineCount();
+        setOfflineCount(count);
+      } catch (error) {
+        console.error("Erro ao buscar contagem offline:", error);
+      }
+    };
+
+    fetchOfflineCount();
+
+    // Atualiza a contagem quando o status de sincronização muda
+    if (!isSyncing) {
+      fetchOfflineCount();
+    }
+  }, [isSyncing, getOfflineCount]);
 
   const onSubmit = async (data: PaleteForm) => {
     try {
@@ -79,38 +107,59 @@ export default function Paletes() {
 
       // regra: se vazio -> "sem bandeira"
       const numeroPallet =
-        data.numeroPalete && data.numeroPalete.trim() !== ''
+        data.numeroPalete && data.numeroPalete.trim() !== ""
           ? data.numeroPalete.trim()
-          : 'sem bandeira';
+          : "sem bandeira";
 
       const payload = {
         // NÃO enviar diaHoje (BD preenche)
         numeroRota: Number(data.rota),
         numeroPallet,
-        tipologia: data.tipologia,
-        remontado: data.remontado ? ('sim' as const) : ('nao' as const),
-        conferido: data.conferido ? ('sim' as const) : ('nao' as const),
+        tipologia:
+          (data.tipologia as "resfriado" | "congelado" | "seco") || "seco",
+        remontado: data.remontado ? ("sim" as const) : ("nao" as const),
+        conferido: data.conferido ? ("sim" as const) : ("nao" as const),
       };
 
-      const saved = await createPalete(payload);
+      const netInfo = await NetInfo.fetch();
 
-      Alert.alert('Sucesso', `Palete "${saved?.numeroPallet}" cadastrado!`); // FIX
+      if (netInfo.isConnected) {
+        try {
+          const saved = await createPalete(payload);
+          Alert.alert(
+            "Sucesso",
+            `Palete "${saved?.numeroPallet}" cadastrado online!`
+          );
+        } catch (err: any) {
+          savePaleteOffline(payload);
+          Alert.alert(
+            "Salvo Offline",
+            `Palete "${payload.numeroPallet}" salvo offline. Será sincronizado quando houver conexão.`
+          );
+        }
+      } else {
+        savePaleteOffline(payload);
+        Alert.alert(
+          "Salvo Offline",
+          `Palete "${payload.numeroPallet}" salvo offline. Será sincronizado quando houver conexão.`
+        );
+      }
 
       // reset parcial
-      setValue('numeroPalete', '');
-      setValue('remontado', false);
-      setValue('conferido', false);
+      setValue("numeroPalete", "");
+      setValue("remontado", false);
+      setValue("conferido", false);
       setTipologia(null);
-      setValue('tipologia', '');
+      setValue("tipologia", "");
     } catch (e: any) {
-      const msg = String(e?.message || '');
+      const msg = String(e?.message || "");
       if (
-        msg.toLowerCase().includes('conflito') ||
-        msg.toLowerCase().includes('já existe')
+        msg.toLowerCase().includes("conflito") ||
+        msg.toLowerCase().includes("já existe")
       ) {
-        Alert.alert('Atenção', 'Já existe palete para este dia/rota/número.');
+        Alert.alert("Atenção", "Já existe palete para este dia/rota/número.");
       } else {
-        Alert.alert('Erro', msg || 'Falha ao salvar palete');
+        Alert.alert("Erro", msg || "Falha ao salvar palete");
       }
     } finally {
       setSubmitting(false);
@@ -122,7 +171,7 @@ export default function Paletes() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
           style={styles.keyboard}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
           <ScrollView
             contentContainerStyle={styles.container}
@@ -130,7 +179,26 @@ export default function Paletes() {
             nestedScrollEnabled
           >
             <Text style={styles.title}>Cadastro de Paletes</Text>
-            <Text>Data: {new Date().toLocaleDateString('pt-BR')}</Text>
+            <Text>Data: {new Date().toLocaleDateString("pt-BR")}</Text>
+
+            <View
+              style={[
+                styles.statusBox,
+                { backgroundColor: isOnline ? "#E8F5E9" : "#FFF3E0" },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: isOnline ? "#2E7D32" : "#E65100" },
+                ]}
+              >
+                {isOnline ? "Online" : "Offline"}
+                {isSyncing && "Sincronizando..."}
+                {offlineCount.total > 0 &&
+                  ` • ${offlineCount.total} item(s) pendente(s)`}
+              </Text>
+            </View>
 
             <Text>Rota</Text>
             <Controller
@@ -143,7 +211,7 @@ export default function Paletes() {
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
                   placeholder="Informe o número da rota"
-                  value={value !== undefined ? String(value) : ''}
+                  value={value !== undefined ? String(value) : ""}
                   onChangeText={(t) => onChange(Number(t))}
                 />
               )}
@@ -163,10 +231,10 @@ export default function Paletes() {
                   returnKeyType="done"
                   onSubmitEditing={Keyboard.dismiss}
                   placeholder='Deixe em branco se for "sem bandeira"'
-                  value={value ?? ''}
+                  value={value ?? ""}
                   onChangeText={onChange}
                   onEndEditing={() => {
-                    if (!value || value.trim() === '') onChange('sem bandeira');
+                    if (!value || value.trim() === "") onChange("sem bandeira");
                   }}
                 />
               )}
@@ -186,13 +254,13 @@ export default function Paletes() {
                   <DropDownPicker
                     open={open}
                     setOpen={(v) =>
-                      setOpen(typeof v === 'function' ? v(open) : v)
+                      setOpen(typeof v === "function" ? v(open) : v)
                     }
                     items={items}
                     value={tipologia}
                     setValue={(cb) => {
                       const selected =
-                        typeof cb === 'function' ? cb(tipologia) : cb;
+                        typeof cb === "function" ? cb(tipologia) : cb;
                       setTipologia(selected as string | null);
                       return selected as any;
                     }}
@@ -232,7 +300,7 @@ export default function Paletes() {
             </View>
 
             <Button
-              title={submitting ? 'Salvando...' : 'Salvar Palete'}
+              title={submitting ? "Salvando..." : "Salvar Palete"}
               onPress={handleSubmit(onSubmit)}
               disabled={submitting}
             />
@@ -244,7 +312,7 @@ export default function Paletes() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
+  safeArea: { flex: 1, backgroundColor: "#fff" },
   keyboard: { flex: 1 },
   container: { flex: 1, padding: 20, paddingBottom: 40 },
   title: { fontSize: 20, marginBottom: 10 },
@@ -253,27 +321,37 @@ const styles = StyleSheet.create({
     padding: 8,
     marginBottom: 10,
     borderRadius: 6,
-    borderColor: '#ccc',
+    borderColor: "#ccc",
   },
   dropdown: {
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     borderWidth: 1,
     borderRadius: 6,
     height: 40,
     marginBottom: 10,
   },
   dropdownContainer: {
-    borderColor: '#ccc',
+    borderColor: "#ccc",
     borderWidth: 1,
     borderRadius: 6,
     marginBottom: 10,
     zIndex: 999,
   },
   switchContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
-  error: { color: 'red', marginBottom: 10 },
+  error: { color: "red", marginBottom: 10 },
+  statusBox: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: "center",
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });
