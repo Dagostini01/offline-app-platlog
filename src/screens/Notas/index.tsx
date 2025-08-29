@@ -84,6 +84,15 @@ function toQtyString(n?: number) {
 }
 
 export default function Notas() {
+
+  const { isOnline, isSyncing, savePaleteOffline, getOfflineCount } =
+    useOfflineSync();
+  const [offlineCount, setOfflineCount] = useState({
+    notas: 0,
+    paletes: 0,
+    total: 0,
+  });
+
   const { saveNotaOffline } = useOfflineSync();
 
   const {
@@ -192,12 +201,12 @@ export default function Notas() {
         conferidoPor: (data.conferente || "").trim() || "Não informado",
         avarias: hasAvarias
           ? data.avarias.map((a) => ({
-              tipoErro: a.tipoErro,
-              codProduto: a.codigoProduto || undefined,
-              descProduto: a.descricaoProduto || undefined,
-              quantidade: toQtyString(a.quantidade),
-              unidadeMedida: a.unidadeMedida || "UN",
-            }))
+            tipoErro: a.tipoErro,
+            codProduto: a.codigoProduto || undefined,
+            descProduto: a.descricaoProduto || undefined,
+            quantidade: toQtyString(a.quantidade),
+            unidadeMedida: a.unidadeMedida || "UN",
+          }))
           : undefined,
       };
 
@@ -255,6 +264,25 @@ export default function Notas() {
           >
             <Text style={styles.title}>Cadastro de Notas</Text>
             <Text>Data: {new Date().toLocaleDateString("pt-BR")}</Text>
+
+            <View
+              style={[
+                styles.statusBox,
+                { backgroundColor: isOnline ? "#E8F5E9" : "#FFF3E0" },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: isOnline ? "#2E7D32" : "#E65100" },
+                ]}
+              >
+                {isOnline ? "Online" : "Offline"}
+                {isSyncing && "Sincronizando..."}
+                {offlineCount.total > 0 &&
+                  ` • ${offlineCount.total} item(s) pendente(s)`}
+              </Text>
+            </View>
 
             {/* Resumo de avarias */}
             {avaria && (
@@ -565,7 +593,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
   keyboard: { flex: 1 },
   container: { padding: 20, paddingBottom: 40 },
-  title: { fontSize: 20, marginBottom: 10 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
   subtitle: { fontSize: 16 },
   input: {
     borderWidth: 1,
@@ -650,4 +678,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   summaryText: { color: "#2E7D32", fontWeight: "600" },
+    statusBox: {
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: "center",
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });

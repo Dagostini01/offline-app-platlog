@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#fff" },
   keyboard: { flex: 1 },
   container: { flex: 1, padding: 20, paddingBottom: 40 },
-  title: { fontSize: 20, marginBottom: 10 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
   input: {
     borderWidth: 1,
     padding: 8,
