@@ -8,7 +8,10 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
-      "API_BASE": "http://localhost:3000"
+      "API_BASE": "http://localhost:3000",
+      "eas": {
+        "projectId": "050523b7-86ec-42e7-b152-bf85e1619b27"
+      }
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -25,10 +28,27 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.offlineappplatlog"
+      "package": "com.platlog.offlineapp",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "build": {
+      "preview": {
+        "android": {
+          "buildType": "apk"
+        }
+      },
+      "production": {
+        "android": {
+          "buildType": "apk"
+        }
+      }
     }
   }
 }
