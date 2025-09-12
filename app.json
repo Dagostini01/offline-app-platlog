@@ -4,7 +4,7 @@
     "slug": "offline-app-platlog",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon.svg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "extra": {
@@ -14,7 +14,7 @@
       }
     },
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-icon.svg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.svg",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -36,7 +36,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.svg"
     },
     "build": {
       "preview": {

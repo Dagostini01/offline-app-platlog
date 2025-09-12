@@ -17,7 +17,6 @@ export default function Home() {
 
   const [totalNotas, setTotalNotas] = useState(0);
   const [totalPaletes, setTotalPaletes] = useState(0);
-  const [itensConferidos, setItensConferidos] = useState(0);
   const [totalAvarias, setTotalAvarias] = useState(0);
 
   // Deixe a função estável com useCallback para o useFocusEffect não disparar à toa
@@ -35,9 +34,7 @@ export default function Home() {
     setTotalNotas(notasArr.length);
     setTotalPaletes(palsArr.length);
 
-    const notasConf   = notasArr.filter((n: any) => (n.conferidoPor ?? '').toString().trim() !== '').length;
-    const paletesConf = palsArr.filter((p: any) => p.conferido === 'sim' || p.conferido === true).length;
-    setItensConferidos(notasConf + paletesConf);
+
 
     const isAvaria = (v: any) => v === 'sim' || v === true || v === 1;
     const notasAvaria   = notasArr.filter((n: any) => isAvaria(n.avaria) || (Array.isArray(n.avarias) && n.avarias.length > 0)).length;
@@ -48,7 +45,7 @@ export default function Home() {
   //1-Buscar ao montar
   useEffect(() => {
     fetchResumoPorData(selectedDate).catch(() => {
-      setTotalNotas(0); setTotalPaletes(0); setItensConferidos(0); setTotalAvarias(0);
+      setTotalNotas(0); setTotalPaletes(0); setTotalAvarias(0);
     });
   }, [fetchResumoPorData, selectedDate]);
 
@@ -61,7 +58,7 @@ export default function Home() {
           await fetchResumoPorData(selectedDate);
         } catch {
           if (!isActive) return;
-          setTotalNotas(0); setTotalPaletes(0); setItensConferidos(0); setTotalAvarias(0);
+          setTotalNotas(0); setTotalPaletes(0); setTotalAvarias(0);
         }
       })();
       return () => { isActive = false; };
@@ -115,10 +112,7 @@ export default function Home() {
             <Text style={styles.label}>Total de Paletes</Text>
             <Text style={styles.value}>{totalPaletes}</Text>
           </View>
-          <View style={styles.box}>
-            <Text style={styles.label}>Itens Conferidos</Text>
-            <Text style={styles.value}>{itensConferidos}</Text>
-          </View>
+
           <View style={styles.box}>
             <Text style={styles.label}>Total de Avarias</Text>
             <Text style={styles.value}>{totalAvarias}</Text>

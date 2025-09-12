@@ -39,6 +39,7 @@ type FormData = {
   conferente?: string;
   avaria: boolean;
   avarias: AvariaForm[];
+  obsNota?: string;
 };
 
 // ---------- Validação ----------
@@ -75,6 +76,7 @@ const notaSchema = yup.object({
     then: (s) => s.min(1, "Inclua ao menos uma avaria"),
     otherwise: (s) => s.optional().default([]),
   }),
+  obsNota: yup.string().max(500, "Máximo 500 caracteres").optional(),
 });
 
 // ---------- Helper ----------
@@ -199,6 +201,7 @@ export default function Notas() {
         tipologia:
           (data.tipologia as "resfriado" | "congelado" | "seco") || "seco",
         conferidoPor: (data.conferente || "").trim() || "Não informado",
+        obsNota: data.obsNota || undefined,
         avarias: hasAvarias
           ? data.avarias.map((a) => ({
             tipoErro: a.tipoErro,
@@ -231,12 +234,14 @@ export default function Notas() {
         );
       }
 
+      setValue("rota", 0);
       setValue("nota", 0);
       setValue("conferido", false);
       setValue("conferente", "");
       setValue("avaria", false);
       replace([]); // limpa array
       setValue("tipologia", "");
+      setValue("obsNota", "");
       setTipologia(null);
     } catch (err: any) {
       const msg = String(err?.message || "");
@@ -577,6 +582,29 @@ export default function Notas() {
             )}
             {/* ----- /MÚLTIPLAS AVARIAS ----- */}
 
+            <Text>Observações</Text>
+            <Controller
+              control={control}
+              name="obsNota"
+              render={({ field: { onChange, value } }) => (
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={value || ""}
+                  onChangeText={onChange}
+                  multiline
+                  numberOfLines={4}
+                  placeholder="Digite observações sobre a conferência (opcional)"
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+              )}
+            />
+            {errors.obsNota && (
+              <Text style={styles.error}>
+                {String(errors.obsNota.message)}
+              </Text>
+            )}
+
             <Button
               title={submitting ? "Salvando..." : "Salvar Nota"}
               onPress={handleSubmit(onSubmit)}
@@ -601,6 +629,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 6,
     borderColor: "#ccc",
+  },
+  textArea: {
+    height: 80,
+    textAlignVertical: "top",
   },
   dropdown: {
     borderColor: "#ccc",

@@ -250,6 +250,9 @@ export default function ResumoDoDia() {
               {n.conferidoPor ? (
                 <Text>Conferido por: {n.conferidoPor}</Text>
               ) : null}
+              {n.obsNota ? (
+                <Text>Observações: {n.obsNota}</Text>
+              ) : null}
             </View>
           );
         })}
@@ -300,6 +303,9 @@ export default function ResumoDoDia() {
                   <Text>Rota: {n.numeroRota}</Text>
                   {n.conferidoPor ? (
                     <Text>Conferido por: {n.conferidoPor}</Text>
+                  ) : null}
+                  {n.obsNota ? (
+                    <Text>Observações: {n.obsNota}</Text>
                   ) : null}
                 </View>
               );
